@@ -66,6 +66,11 @@ aside{display:flex;flex-direction:column;gap:16px;min-width:0}
 .result .giver{color:var(--gold);font-size:clamp(1rem,2.4vw,1.3rem)}
 select{font-family:var(--f-body);font-weight:700;font-size:.95rem;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 textarea{width:100%;box-sizing:border-box;min-height:180px;resize:vertical;background:var(--stage);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:var(--f-body);font-size:1rem;line-height:1.6}
+body:not(.admin) .admin-only{display:none!important}
+body.admin .view-only{display:none!important}
+#mainText{font-size:1.1rem}
+.m .ro{font-size:.85rem;color:var(--muted);white-space:nowrap}
+.m.r1 .ro,.m.r2 .ro,.m.r3 .ro{color:var(--gold)}
 .hint{color:var(--muted);font-size:.82rem;font-weight:400;margin:0}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 label.opt{display:flex;gap:8px;align-items:center;font-size:.95rem}
@@ -147,14 +152,16 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       <h2>今週の参加設定 <small id="count"></small></h2>
       <div class="presenter" id="presenterBox">
         <label for="mainSel">景品を渡す人（メインプレゼン）</label>
-        <select id="mainSel"></select>
-        <p class="hint" id="mainHint">この人は必ず抽選から外れます。選ぶまでルーレットは回せません。</p>
+        <select id="mainSel" class="admin-only"></select>
+        <strong id="mainText" class="view-only"></strong>
+        <p class="hint" id="mainHint">この人は必ず抽選から外れます。</p>
       </div>
       <div class="members" id="members"></div>
-      <div class="row">
+      <div class="row admin-only">
         <button id="resetWeek" class="ghost" type="button">今週の設定をリセット</button>
       </div>
-      <p class="hint">順位・欠席などは毎週ここで選びます。同順位は何人でも同じ点数にできます。リセットすると全員「参加 1点」に戻り、メインプレゼンも未選択になります（当選履歴は残ります）。</p>
+      <p class="hint view-only">点数と対象者は、その週の定例会スライドをもとにWebマスターが設定しています。この画面では変更できません。</p>
+      <p class="hint admin-only">管理者モードです。順位・欠席などは毎週ここで選びます。同順位は何人でも同じ点数にできます。リセットすると全員「参加 1点」に戻り、メインプレゼンも未選択になります（当選履歴は残ります）。</p>
     </div>
 
     <div class="card">
@@ -179,7 +186,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       <p class="empty" id="histEmpty">まだありません</p>
     </div>
 
-    <div class="card">
+    <div class="card admin-only">
       <details id="rosterBox">
         <summary>メンバー名簿を編集</summary>
         <textarea id="roster" spellcheck="false" aria-label="メンバー名簿"></textarea>
@@ -234,14 +241,26 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     state.roster = SAMPLE.slice(); state.status = Object.assign({}, DEFAULT_STATUS); state.main = DEFAULT_MAIN;
     state.rosterEdited = false; state.week = DEFAULT_WEEK;
   }
+  // 管理者モード（URLの最後に #admin）のときだけ、点数・対象者・名簿・履歴の削除を変更できる
+  const ADMIN = location.hash === "#admin";
+  document.body.classList.toggle("admin", ADMIN);
+  window.addEventListener("hashchange", () => location.reload());
+  const stored = JSON.parse(JSON.stringify(state));
+  if (!ADMIN){
+    state.roster = SAMPLE.slice(); state.status = Object.assign({}, DEFAULT_STATUS); state.main = DEFAULT_MAIN;
+  }
   // ポータルに置いたときは、同じ場所の members.json（最新のメンバーリスト）から名簿を読む。名簿を手で直した端末ではそちらを優先
-  fetch("members.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).then(j => {
+  if (ADMIN) fetch("members.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !Array.isArray(j.members) || state.rosterEdited) return;
     const names = j.members.map(m => Array.isArray(m) ? String(m[0]).trim() : "").filter(Boolean);
     if (!names.length) return;
     state.roster = names; $("roster").value = names.join("\n"); save(); if (phase === "idle") renderAll();
   }).catch(() => {});
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} };
+  const save = () => {
+    // 閲覧モードでは、当選履歴と音の設定だけを保存する（管理者モードで決めた点数は上書きしない）
+    const out = ADMIN ? state : Object.assign({}, stored, {history: state.history, sound: state.sound, week: state.week});
+    try { localStorage.setItem(KEY, JSON.stringify(out)); } catch(e){}
+  };
 
   const roster = () => { const seen = new Set(); return state.roster.map(s => s.trim()).filter(s => s && !seen.has(s) && seen.add(s)); };
   const statusOf = n => state.status[n] || "p";
@@ -381,6 +400,9 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       let sel;
       if (isMain(n)){
         sel = document.createElement("span"); sel.className = "fixed"; sel.textContent = "メインプレゼン（対象外）";
+      } else if (!ADMIN){
+        sel = document.createElement("span"); sel.className = "ro";
+        sel.textContent = (STATUS.find(x => x.v === st) || STATUS[0]).label;
       } else {
         sel = document.createElement("select"); sel.id = "st-" + i; sel.setAttribute("aria-label", n + "の参加区分");
         STATUS.forEach(s => { const o=document.createElement("option"); o.value=s.v; o.textContent=s.label; if (s.v===st) o.selected=true; sel.appendChild(o); });
@@ -401,6 +423,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     opts.forEach(([v, t]) => { const o=document.createElement("option"); o.value=v; o.textContent=t; if (v===state.main) o.selected=true; sel.appendChild(o); });
     if (!mainReady()) sel.value = "";
     $("presenterBox").classList.toggle("need", !mainReady());
+    $("mainText").textContent = state.main === NONE ? "今週はなし" : (mainReady() ? state.main + " さん" : "未設定");
   }
 
   function renderAll(){
@@ -432,6 +455,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
         clearTimeout(armed);
         state.history.splice(idx, 1); save(); renderAll();
       });
+      if (!ADMIN) del.hidden = true;
       wrap.append(who, del); li.appendChild(wrap); h.appendChild(li);
     });
     $("histEmpty").hidden = !!state.history.length;
