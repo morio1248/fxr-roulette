@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>F×R 定例会ルーレット</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Dela+Gothic+One&display=swap">
+<style>
+/* Layout: 投影前提の暗いステージ。左に大きなホイール、右に今週の参加設定。狭い画面では縦積み */
+:root{
+  --stage:#17120f;
+  --panel:#231c18;
+  --line:#3a2f29;
+  --ink:#f6efe9;
+  --muted:#b5a79c;
+  --red:#c8102e;
+  --gold:#e8b44a;
+  --f-body:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+  --f-display:"Dela Gothic One","BIZ UDPGothic","Meiryo",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--stage);color:var(--ink);font-family:var(--f-body);font-weight:700;font-size:16px}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:20px 32px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
+header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(1.5rem,3.2vw,2.2rem);margin:0;letter-spacing:.02em}
+h1 span{color:var(--red)}
+h1 .date{font-family:var(--f-body);font-weight:700;font-size:.5em;color:var(--muted);margin-left:.6em;white-space:nowrap}
+.rule{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none;font-size:.85rem}
+.rule li{border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--muted)}
+.rule b{color:var(--ink)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:18px;min-width:0}
+.wheel-box{position:relative;width:min(100%,640px);aspect-ratio:1;max-width:100%}
+canvas{width:100%;height:100%;display:block}
+.pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-top:38px solid var(--gold);filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));z-index:2}
+.hub{position:absolute;inset:0;margin:auto;width:18%;height:18%;border-radius:50%;background:var(--stage);border:5px solid var(--gold);display:grid;place-items:center;font-family:var(--f-display);font-size:clamp(.7rem,2vw,1.1rem);color:var(--gold)}
+.summary{color:var(--muted);font-variant-numeric:tabular-nums;margin:0}
+.summary b{color:var(--ink);font-size:1.15em}
+.controls{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+button{font-family:var(--f-body);font-weight:700;border-radius:10px;cursor:pointer;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:10px 16px;font-size:1rem}
+button:hover{border-color:var(--muted)}
+button:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.spin{background:var(--red);border-color:var(--red);font-family:var(--f-display);font-weight:400;font-size:1.6rem;padding:14px 48px;letter-spacing:.1em}
+.spin:hover{background:#a50d26}
+aside{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-size:1rem;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h2 small{color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
+.members{display:flex;flex-direction:column;gap:6px;max-height:min(56vh,560px);overflow-y:auto;padding-right:4px}
+.m{display:grid;grid-template-columns:minmax(0,1fr) auto 2.6em;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:var(--stage)}
+.m .nm{overflow-wrap:anywhere}
+.m .pt{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.m.r1 .pt,.m.r2 .pt,.m.r3 .pt{color:var(--gold)}
+.m.out{opacity:.5}
+.m.out .nm{text-decoration:line-through}
+.m.won .nm::after{content:"当選済";margin-left:8px;font-size:.72rem;color:var(--stage);background:var(--gold);border-radius:4px;padding:1px 6px;text-decoration:none;display:inline-block}
+.presenter{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;border:2px solid var(--gold)}
+.presenter.need{border-color:var(--red)}
+.presenter label{color:var(--gold)}
+.presenter select{font-size:1.05rem;padding:8px 10px}
+.m .fixed{font-size:.85rem;color:var(--gold);border:1px solid var(--gold);border-radius:8px;padding:5px 8px;white-space:nowrap}
+.result .giver{color:var(--gold);font-size:clamp(1rem,2.4vw,1.3rem)}
+select{font-family:var(--f-body);font-weight:700;font-size:.95rem;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+textarea{width:100%;box-sizing:border-box;min-height:180px;resize:vertical;background:var(--stage);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:var(--f-body);font-size:1rem;line-height:1.6}
+.hint{color:var(--muted);font-size:.82rem;font-weight:400;margin:0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+label.opt{display:flex;gap:8px;align-items:center;font-size:.95rem}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
+details summary{cursor:pointer;font-weight:700;list-style-position:inside}
+details[open] summary{margin-bottom:10px}
+ol.history{margin:0;padding-left:1.6em;display:flex;flex-direction:column;gap:4px}
+ol.history li::marker{color:var(--muted)}
+ol.history li{line-height:1.5}
+ol.history .row-h{display:flex;align-items:center;gap:8px;justify-content:space-between}
+ol.history .who{min-width:0;overflow-wrap:anywhere}
+ol.history .del{flex:none;background:transparent;border:1px solid var(--line);color:var(--muted);font-size:.8rem;padding:2px 8px;border-radius:6px}
+ol.history .del:hover{color:var(--ink);border-color:var(--muted)}
+ol.history .del.warn{border-color:var(--red);color:#ff8a9a}
+ol.history .d{color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums;margin-right:.6em}
+ol.history .arrow{color:var(--gold);margin-inline:.4em}
+.spin.running{background:var(--gold);border-color:var(--gold);color:var(--stage)}
+.spin.running:hover{background:#d6a43f}
+.empty{color:var(--muted);font-weight:400;font-size:.9rem;margin:0}
+.ghost{background:transparent;font-size:.85rem;padding:6px 10px}
+.warn{border-color:var(--red);color:#ff8a9a}
+.result{position:fixed;inset:0;display:grid;place-items:center;background:rgba(10,7,5,.84);z-index:10;padding-inline:16px}
+.result-inner{text-align:center;display:flex;flex-direction:column;gap:14px;max-height:100%;overflow-y:auto;padding-block:16px;align-items:center;animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
+.result .label{color:var(--gold);font-size:clamp(1rem,2.5vw,1.4rem);letter-spacing:.2em}
+.result .name{font-family:var(--f-body);font-weight:700;font-size:clamp(3rem,11vw,7.5rem);line-height:1.2;letter-spacing:.08em;color:var(--ink);padding-bottom:.12em;border-bottom:6px solid var(--red);overflow-wrap:anywhere}
+.result .name::after{content:" さん";font-size:.45em;letter-spacing:0;color:var(--muted)}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.prize-drop{display:grid;place-items:center;min-height:140px;border:2px dashed var(--line);border-radius:10px;background:var(--stage);cursor:pointer;color:var(--muted);font-weight:400;text-align:center;padding:10px;overflow:hidden}
+.prize-drop:hover,.prize-drop.over{border-color:var(--gold);color:var(--ink)}
+.file-pick{position:relative;display:block}
+.file-btn{display:block;text-align:center;background:var(--red);color:var(--ink);border-radius:8px;padding:10px 14px;font-weight:700}
+.file-pick:hover .file-btn{background:#a50d26}
+.file-pick:focus-within .file-btn{outline:3px solid var(--gold);outline-offset:2px}
+#prizeFile{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+#prizeMsg:empty{display:none}
+#prizeMsg.err{color:#ff8a9a}
+.prize-drop img{max-width:100%;max-height:220px;object-fit:contain;border-radius:6px}
+input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--f-body);font-size:1rem;font-weight:700}
+.prize-show{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.prize-show img{max-width:min(80vw,460px);max-height:34vh;object-fit:contain;border-radius:12px;border:4px solid var(--gold);background:var(--panel)}
+.prize-show figcaption{color:var(--gold);font-size:clamp(1rem,2.4vw,1.4rem)}
+.result .odds{color:var(--muted);font-variant-numeric:tabular-nums}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.result-inner{animation:none}}
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>F<span>×</span>R 景品ルーレット <small class="date">第308回　10月13日</small></h1>
+    <ul class="rule" aria-label="ポイントのルール">
+      <li>NWリーダー 1位 <b>5点</b></li>
+      <li>2位 <b>4点</b></li>
+      <li>3位 <b>3点</b></li>
+      <li>その他 <b>1点</b></li>
+      <li>代理・欠席・メインプレゼン <b>対象外</b></li>
+    </ul>
+  </header>
+
+  <section class="stage">
+    <div class="wheel-box">
+      <div class="pointer" aria-hidden="true"></div>
+      <canvas id="wheel" width="1280" height="1280" aria-label="景品ルーレット"></canvas>
+      <div class="hub" aria-hidden="true">F×R</div>
+    </div>
+    <p class="summary" id="summary"></p>
+    <div class="controls">
+      <button id="spinBtn" class="spin">スタート</button>
+      <button id="fsBtn" type="button">全画面</button>
+      <button id="soundBtn" type="button" aria-pressed="true">音 ON</button>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>今週の参加設定 <small id="count"></small></h2>
+      <div class="presenter" id="presenterBox">
+        <label for="mainSel">景品を渡す人（メインプレゼン）</label>
+        <select id="mainSel"></select>
+        <p class="hint" id="mainHint">この人は必ず抽選から外れます。選ぶまでルーレットは回せません。</p>
+      </div>
+      <div class="members" id="members"></div>
+      <div class="row">
+        <button id="resetWeek" class="ghost" type="button">今週の設定をリセット</button>
+      </div>
+      <p class="hint">順位・欠席などは毎週ここで選びます。同順位は何人でも同じ点数にできます。リセットすると全員「参加 1点」に戻り、メインプレゼンも未選択になります（当選履歴は残ります）。</p>
+    </div>
+
+    <div class="card">
+      <h2>今週の景品 <button id="prizeClear" class="ghost" type="button" hidden>写真を外す</button></h2>
+      <div class="prize-drop" id="prizeDrop">
+        <img id="prizePreview" alt="景品の写真" hidden>
+        <span id="prizeEmpty">ここに写真をドラッグ＆ドロップ<br>またはコピーして Ctrl+V で貼り付け</span>
+      </div>
+      <div class="file-pick">
+        <span class="file-btn" aria-hidden="true">写真ファイルを選ぶ</span>
+        <input type="file" id="prizeFile" accept="image/*,.heic,.heif" aria-label="写真ファイルを選ぶ">
+      </div>
+      <p class="hint" id="prizeMsg" role="status"></p>
+      <label for="prizeName" class="hint">景品名（任意）</label>
+      <input type="text" id="prizeName" placeholder="例：クラフトビール 3本セット">
+      <p class="hint">当選画面に名前と一緒に表示されます。写真はこの端末のブラウザに保存されます。</p>
+    </div>
+
+    <div class="card">
+      <h2>これまでの当選者</h2>
+      <ol class="history" id="history"></ol>
+      <p class="empty" id="histEmpty">まだありません</p>
+    </div>
+
+    <div class="card">
+      <details id="rosterBox">
+        <summary>メンバー名簿を編集</summary>
+        <textarea id="roster" spellcheck="false" aria-label="メンバー名簿"></textarea>
+        <p class="hint">1行に1人。この端末のブラウザに保存され、翌週も使えます。</p>
+      </details>
+    </div>
+  </aside>
+</div>
+
+<div class="result" id="result" hidden>
+  <div class="result-inner">
+    <div class="label">当 選</div>
+    <div class="name" id="winnerName"></div>
+    <div class="odds" id="winnerOdds"></div>
+    <div class="giver" id="winnerGiver"></div>
+    <figure class="prize-show" id="prizeShow" hidden>
+      <img id="prizeShowImg" alt="">
+      <figcaption id="prizeShowName"></figcaption>
+    </figure>
+    <button id="closeResult" type="button">閉じる</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // 第308回（2026/10/13）定例会スライドのメンバーリスト・NWリーダー表彰（9月度 外部リファーラル）・メインプレゼン・代理より
+  const SAMPLE = ["安藤 亮","黒川 貴司","勅使 康友","松丘 晃","水島 昂","春木 世覇","伊藤 拓哉","鯨岡 朋也","小山 諒","加藤 立行",
+    "山﨑 健悟","渡部 郁子","長田 憲児","清水 悠紀","廣瀬 雄大","福田 誠治","林 仁","能美 英作","三島 友紀","石井 修真",
+    "笹貫 礼央","斎藤 政宏","藤田 晃充","古澤 陽一","加藤 秀人","丸屋 大樹","服部 充紘","昆 恵介","山口 光太郎","仲川 めぐみ"];
+  const DEFAULT_STATUS = {"安藤 亮":"r1","加藤 立行":"r1","小山 諒":"r1","斎藤 政宏":"r2","林 仁":"r2","古澤 陽一":"r2","長田 憲児":"absent"};
+  const DEFAULT_MAIN = "林 仁";
+  const DEFAULT_WEEK = "2026-10-13"; // 定例会の日付。変わると名簿・点数・メインプレゼンをこの週の内容に入れ替える（当選履歴は残す）
+  const KEY = "fxr-roulette-v3";
+  const STATUS = [
+    {v:"p",  label:"参加 1点", pt:1},
+    {v:"r1", label:"NW 1位 5点", pt:5},
+    {v:"r2", label:"NW 2位 4点", pt:4},
+    {v:"r3", label:"NW 3位 3点", pt:3},
+    {v:"absent", label:"対象外：代理・欠席", pt:0},
+  ];
+  const NONE = "__none";
+  const PT = Object.fromEntries(STATUS.map(s => [s.v, s.pt]));
+  const SEG_COLORS = ["#5b4a40","#3a2f29","#7a6356","#2b2320"];
+  const RANK_COLORS = {r1:"#e8b44a", r2:"#c8102e", r3:"#9e0c24"};
+  const DARK_TEXT = {"#e8b44a":true};
+
+  const $ = id => document.getElementById(id);
+  const canvas = $("wheel"), ctx = canvas.getContext("2d");
+  let state = { roster: SAMPLE.slice(), status: Object.assign({}, DEFAULT_STATUS), main: DEFAULT_MAIN, history: [], sound: true };
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.roster)) state = Object.assign(state, s); } catch(e){}
+  if (state.week !== DEFAULT_WEEK){
+    state.roster = SAMPLE.slice(); state.status = Object.assign({}, DEFAULT_STATUS); state.main = DEFAULT_MAIN;
+    state.rosterEdited = false; state.week = DEFAULT_WEEK;
+  }
+  // ポータルに置いたときは、同じ場所の members.json（最新のメンバーリスト）から名簿を読む。名簿を手で直した端末ではそちらを優先
+  fetch("members.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !Array.isArray(j.members) || state.rosterEdited) return;
+    const names = j.members.map(m => Array.isArray(m) ? String(m[0]).trim() : "").filter(Boolean);
+    if (!names.length) return;
+    state.roster = names; $("roster").value = names.join("\n"); save(); if (phase === "idle") renderAll();
+  }).catch(() => {});
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} };
+
+  const roster = () => { const seen = new Set(); return state.roster.map(s => s.trim()).filter(s => s && !seen.has(s) && seen.add(s)); };
+  const statusOf = n => state.status[n] || "p";
+  for (const k in state.status) if (state.status[k] === "main"){ state.main = state.main || k; delete state.status[k]; }
+  const isMain = n => state.main && state.main !== NONE && state.main === n;
+  const mainReady = () => state.main === NONE || roster().includes(state.main);
+  const weightOf = n => isMain(n) ? 0 : (PT[statusOf(n)] ?? 1);
+  state.history = (state.history || []).map(h => typeof h === "string" ? {name:h, date:""} : h);
+  const today = () => { const d = new Date(); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; };
+  const entries = () => roster().map(n => ({name:n, w:weightOf(n), st:statusOf(n)})).filter(e => e.w > 0);
+
+  let angle = 0, spinning = false, phase = "idle"; // idle | running | stopping
+
+  function draw(){
+    const items = entries(), total = items.reduce((a,e)=>a+e.w,0);
+    const W = canvas.width, c = W/2, r = c - 16;
+    ctx.clearRect(0,0,W,W);
+    ctx.beginPath(); ctx.arc(c,c,r+10,0,Math.PI*2); ctx.fillStyle="#e8b44a"; ctx.fill();
+    if (!items.length){
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle="#231c18"; ctx.fill();
+      ctx.fillStyle="#b5a79c"; ctx.font="700 44px 'BIZ UDPGothic',sans-serif"; ctx.textAlign="center";
+      ctx.fillText("参加者がいません", c, c - 150); return;
+    }
+    let a = angle - Math.PI/2, plain = 0;
+    items.forEach((e, i) => {
+      const seg = Math.PI*2 * e.w / total;
+      let col = RANK_COLORS[e.st];
+      if (!col){
+        col = SEG_COLORS[plain % SEG_COLORS.length]; plain++;
+      }
+      ctx.beginPath(); ctx.moveTo(c,c); ctx.arc(c,c,r,a,a+seg); ctx.closePath();
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle="#17120f"; ctx.lineWidth=3; ctx.stroke();
+      ctx.save(); ctx.translate(c,c); ctx.rotate(a+seg/2);
+      const label = (e.name.length > 9 ? e.name.slice(0,9)+"…" : e.name) + (e.w > 1 ? `  ${e.w}点` : "");
+      const size = Math.max(20, Math.min(62, r*seg*0.5, 560/Math.max(label.length,2)));
+      ctx.font = `700 ${size}px 'BIZ UDPGothic','Meiryo',sans-serif`;
+      ctx.fillStyle = DARK_TEXT[col] ? "#17120f" : "#f6efe9";
+      ctx.textAlign="right"; ctx.textBaseline="middle";
+      ctx.fillText(label, r - 34, 0); ctx.restore();
+      a += seg;
+    });
+  }
+
+  function entryAtPointer(){
+    const items = entries(), total = items.reduce((a,e)=>a+e.w,0);
+    let p = (-angle) % (Math.PI*2); if (p < 0) p += Math.PI*2;
+    let acc = 0;
+    for (const e of items){ acc += Math.PI*2*e.w/total; if (p < acc) return e; }
+    return items[items.length-1];
+  }
+
+  let ac = null;
+  const audio = () => (ac = ac || new (window.AudioContext||window.webkitAudioContext)());
+  function tick(){
+    if (!state.sound) return;
+    try{ const A=audio(), o=A.createOscillator(), g=A.createGain();
+      o.type="square"; o.frequency.value=1400; g.gain.value=0.05;
+      g.gain.exponentialRampToValueAtTime(0.0001, A.currentTime+0.04);
+      o.connect(g).connect(A.destination); o.start(); o.stop(A.currentTime+0.05);
+    }catch(e){}
+  }
+  function fanfare(){
+    if (!state.sound) return;
+    try{ const A=audio();
+      [523,659,784,1047].forEach((f,i)=>{ const o=A.createOscillator(), g=A.createGain(), t=A.currentTime+i*0.12;
+        o.type="triangle"; o.frequency.value=f; g.gain.setValueAtTime(0.12,t);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+        o.connect(g).connect(A.destination); o.start(t); o.stop(t+0.55); });
+    }catch(e){}
+  }
+
+  // スタートで回り続け、ストップで数秒かけて減速して止まる
+  const MAX_SPEED = Math.PI * 2 * 1.6; // 1秒あたり約1.6回転
+  let speed = 0, lastT = 0, lastName = "", stopFrom = 0, stopDist = 0, stopT0 = 0, stopDur = 0;
+  function frame(now){
+    const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    if (phase === "running"){
+      speed = Math.min(MAX_SPEED, speed + MAX_SPEED * dt / 0.6);
+      angle += speed * dt;
+    } else if (phase === "stopping"){
+      const t = Math.min(1, (now - stopT0) / stopDur);
+      angle = stopFrom + stopDist * (1 - Math.pow(1 - t, 3));
+      if (t >= 1){ draw(); finish(); return; }
+    }
+    draw();
+    const cur = entryAtPointer().name; if (cur !== lastName){ lastName = cur; tick(); }
+    requestAnimationFrame(frame);
+  }
+  function start(){
+    if (phase !== "idle" || entries().length < 2 || !mainReady()) return;
+    phase = "running"; spinning = true; speed = 0; lock(true);
+    lastT = performance.now(); lastName = entryAtPointer().name;
+    $("spinBtn").textContent = "ストップ"; $("spinBtn").classList.add("running"); $("spinBtn").disabled = false;
+    requestAnimationFrame(frame);
+  }
+  function stop(){
+    if (phase !== "running") return;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // 止まるまでの時間をランダムにして、押すタイミングで狙えないようにする
+    stopDur = reduce ? 800 : 2800 + Math.random() * 2200;
+    stopDist = Math.max(speed, MAX_SPEED * 0.5) * (stopDur / 1000) / 3;
+    stopFrom = angle; stopT0 = performance.now(); phase = "stopping";
+    $("spinBtn").textContent = "ストップ"; $("spinBtn").disabled = true;
+  }
+  function spin(){ if (phase === "idle") start(); else if (phase === "running") stop(); }
+
+  function finish(){
+    const items = entries(), total = items.reduce((a,e)=>a+e.w,0), w = entryAtPointer();
+    const giver = state.main && state.main !== NONE ? state.main : "";
+    state.history.unshift({name:w.name, from:giver, date:today()});
+    state.history = state.history.slice(0, 50);
+    $("winnerName").textContent = w.name;
+    $("winnerOdds").textContent = `${w.w}点 / 全${total}点`;
+    $("winnerGiver").textContent = state.main && state.main !== NONE ? `景品は ${state.main} さんから` : "";
+    $("result").hidden = false; $("closeResult").focus();
+    fanfare(); save();
+  }
+  function closeResult(){
+    $("result").hidden = true; spinning = false; phase = "idle"; lock(false);
+    $("spinBtn").textContent = "スタート"; $("spinBtn").classList.remove("running");
+    renderAll(); $("spinBtn").focus();
+  }
+
+  function lock(d){
+    document.querySelectorAll("#members select, #roster, #resetWeek, #mainSel").forEach(el => el.disabled = d);
+    $("spinBtn").disabled = d || entries().length < 2 || !mainReady();
+  }
+
+  function renderMembers(){
+    const box = $("members"); box.innerHTML = "";
+    roster().forEach((n, i) => {
+      const st = statusOf(n), row = document.createElement("div");
+      const out = weightOf(n) === 0;
+      row.className = "m " + (isMain(n) ? "main" : st) + (out ? " out" : "");
+      const nm = document.createElement("span"); nm.className="nm"; nm.textContent = n;
+      let sel;
+      if (isMain(n)){
+        sel = document.createElement("span"); sel.className = "fixed"; sel.textContent = "メインプレゼン（対象外）";
+      } else {
+        sel = document.createElement("select"); sel.id = "st-" + i; sel.setAttribute("aria-label", n + "の参加区分");
+        STATUS.forEach(s => { const o=document.createElement("option"); o.value=s.v; o.textContent=s.label; if (s.v===st) o.selected=true; sel.appendChild(o); });
+        sel.addEventListener("change", () => setStatus(n, sel.value));
+      }
+      const pt = document.createElement("span"); pt.className="pt"; pt.textContent = weightOf(n) ? weightOf(n)+"点" : "—";
+      row.append(nm, sel, pt); box.appendChild(row);
+    });
+  }
+
+  function setStatus(name, v){
+    state.status[name] = v; save(); renderAll();
+  }
+
+  function renderMain(){
+    const sel = $("mainSel"); sel.innerHTML = "";
+    const opts = [["", "選んでください"], ...roster().map(n => [n, n]), [NONE, "今週はなし"]];
+    opts.forEach(([v, t]) => { const o=document.createElement("option"); o.value=v; o.textContent=t; if (v===state.main) o.selected=true; sel.appendChild(o); });
+    if (!mainReady()) sel.value = "";
+    $("presenterBox").classList.toggle("need", !mainReady());
+  }
+
+  function renderAll(){
+    renderMain();
+    renderMembers();
+    const all = roster(), items = entries(), total = items.reduce((a,e)=>a+e.w,0);
+    $("count").textContent = `対象 ${items.length} / ${all.length}名`;
+    $("summary").innerHTML = !mainReady() ? "先に「景品を渡す人（メインプレゼン）」を選んでください"
+      : items.length ? `抽選対象 <b>${items.length}</b>名・合計 <b>${total}</b>点` : "抽選対象がいません";
+    if (phase === "idle") $("spinBtn").disabled = items.length < 2 || !mainReady();
+    const h = $("history"); h.innerHTML = "";
+    state.history.forEach((x, idx) => {
+      const li = document.createElement("li");
+      const wrap = document.createElement("div"); wrap.className = "row-h";
+      const who = document.createElement("span"); who.className = "who";
+      const add = (cls, t) => { const s = document.createElement("span"); if (cls) s.className = cls; s.textContent = t; who.appendChild(s); };
+      if (x.date) add("d", x.date);
+      if (x.from){ add("", x.from + " さん"); add("arrow", "→"); }
+      add("", x.name + " さん");
+      const del = document.createElement("button"); del.type = "button"; del.className = "del";
+      del.textContent = "削除"; del.setAttribute("aria-label", `${x.date || ""} ${x.name}さんの履歴を削除`);
+      let armed = null;
+      del.addEventListener("click", () => {
+        if (!armed){
+          del.textContent = "もう一度押すと削除"; del.classList.add("warn");
+          armed = setTimeout(() => { armed = null; del.textContent = "削除"; del.classList.remove("warn"); }, 3000);
+          return;
+        }
+        clearTimeout(armed);
+        state.history.splice(idx, 1); save(); renderAll();
+      });
+      wrap.append(who, del); li.appendChild(wrap); h.appendChild(li);
+    });
+    $("histEmpty").hidden = !!state.history.length;
+    $("soundBtn").textContent = state.sound ? "音 ON" : "音 OFF";
+    $("soundBtn").setAttribute("aria-pressed", String(state.sound));
+    draw();
+  }
+
+  $("roster").value = state.roster.join("\n");
+  $("roster").addEventListener("input", e => { state.roster = e.target.value.split("\n"); state.rosterEdited = true; save(); renderAll(); });
+  // 景品の写真（縮小してブラウザに保存）
+  const PRIZE_KEY = "fxr-roulette-prize-v3";
+  const DEFAULT_PRIZE_IMG = "";
+  const DEFAULT_PRIZE_NAME = "";
+  // 景品は週ごと。週（DEFAULT_WEEK）が変わったら、前の週に入れた写真・景品名は消してこの週の内容にする
+  let prize = { img: DEFAULT_PRIZE_IMG, name: DEFAULT_PRIZE_NAME, week: DEFAULT_WEEK };
+  try { const p = JSON.parse(localStorage.getItem(PRIZE_KEY)); if (p && p.week === DEFAULT_WEEK) prize = Object.assign(prize, p); } catch(e){}
+  const savePrize = () => { try { localStorage.setItem(PRIZE_KEY, JSON.stringify(prize)); } catch(e){} };
+  function renderPrize(){
+    const has = !!prize.img;
+    $("prizePreview").hidden = !has; if (has) $("prizePreview").src = prize.img;
+    $("prizeEmpty").hidden = has; $("prizeClear").hidden = !has;
+    $("prizeName").value = prize.name || "";
+    $("prizeShow").hidden = !(has || prize.name);
+    $("prizeShowImg").hidden = !has; if (has) $("prizeShowImg").src = prize.img;
+    $("prizeShowName").textContent = prize.name || "";
+  }
+  function prizeMsg(t, err){ const m = $("prizeMsg"); m.textContent = t; m.classList.toggle("err", !!err); }
+  function loadPrizeFile(file){
+    if (!file) return;
+    prizeMsg("読み込み中…");
+    const reader = new FileReader();
+    reader.onerror = () => prizeMsg("写真を読み込めませんでした。別の写真で試してください。", true);
+    reader.onload = () => {
+      const src = reader.result, img = new Image();
+      img.onerror = () => prizeMsg("この形式の写真は表示できません。JPEGかPNGの写真を選んでください（iPhoneのHEIC写真は表示できないことがあります）。", true);
+      img.onload = () => {
+        let out = src;
+        try {
+          const max = 900, s = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement("canvas"); c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+          const g = c.getContext("2d"); g.fillStyle = "#ffffff"; g.fillRect(0,0,c.width,c.height);
+          g.drawImage(img, 0, 0, c.width, c.height);
+          out = c.toDataURL("image/jpeg", 0.85);
+        } catch(e) {}
+        prize.img = out; renderPrize();
+        try { localStorage.setItem(PRIZE_KEY, JSON.stringify(prize)); prizeMsg("写真を入れました。"); }
+        catch(e) { prizeMsg("表示はできますが、このブラウザに保存できませんでした。ページを開き直したら入れ直してください。", true); }
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  }
+  $("prizeFile").addEventListener("change", e => { loadPrizeFile(e.target.files[0]); e.target.value = ""; });
+  const drop = $("prizeDrop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); loadPrizeFile(e.dataTransfer.files[0]); });
+  document.addEventListener("paste", e => {
+    const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith("image/"));
+    if (f) { e.preventDefault(); loadPrizeFile(f); }
+  });
+  $("prizeClear").addEventListener("click", () => { prize.img = ""; savePrize(); renderPrize(); prizeMsg(""); });
+  $("prizeName").addEventListener("input", e => { prize.name = e.target.value; savePrize(); renderPrize(); });
+  renderPrize();
+
+  $("mainSel").addEventListener("change", e => { state.main = e.target.value; save(); renderAll(); });
+  $("spinBtn").addEventListener("click", spin);
+  $("closeResult").addEventListener("click", closeResult);
+  $("result").addEventListener("click", e => { if (e.target.id === "result") closeResult(); });
+  document.addEventListener("keydown", e => {
+    if (!$("result").hidden && ["Escape","Enter"," "].includes(e.key)){ e.preventDefault(); closeResult(); return; }
+    const tag = (e.target.tagName||"");
+    if (["TEXTAREA","SELECT","BUTTON","INPUT","SUMMARY","LABEL"].includes(tag)) return;
+    if (e.key===" "||e.key==="Enter"){ e.preventDefault(); spin(); }
+  });
+  $("soundBtn").addEventListener("click", () => { state.sound = !state.sound; save(); renderAll(); });
+  let armed = null;
+  $("resetWeek").addEventListener("click", () => {
+    const b = $("resetWeek");
+    if (!armed){
+      b.textContent = "もう一度押すとリセット"; b.classList.add("warn");
+      armed = setTimeout(() => { armed = null; b.textContent = "今週の設定をリセット"; b.classList.remove("warn"); }, 3000);
+      return;
+    }
+    clearTimeout(armed); armed = null; b.textContent = "今週の設定をリセット"; b.classList.remove("warn");
+    state.status = {}; state.main = ""; save(); renderAll();
+  });
+  $("fsBtn").addEventListener("click", () => {
+    try{ if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){}
+  });
+
+  renderAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+})();
+</script>
+
+</body>
+</html>
