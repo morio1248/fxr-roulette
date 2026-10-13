@@ -91,6 +91,12 @@ details[open] summary{margin-bottom:10px}
 ol.history{margin:0;padding-left:1.6em;display:flex;flex-direction:column;gap:4px}
 ol.history li::marker{color:var(--muted)}
 ol.history li{line-height:1.5}
+.hist-form{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px}
+.hist-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:520px){.hist-grid{grid-template-columns:minmax(0,1fr)}}
+.hist-grid label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted);font-weight:400;min-width:0}
+.hist-grid input,.hist-grid select{width:100%;box-sizing:border-box;font-family:var(--f-body);font-weight:700;font-size:.95rem;background:var(--stage);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color-scheme:dark}
+ol.history .acts{display:flex;gap:6px;flex:none}
 ol.history .row-h{display:flex;align-items:center;gap:8px;justify-content:space-between}
 ol.history .who{min-width:0;overflow-wrap:anywhere}
 ol.history .del{flex:none;background:transparent;border:1px solid var(--line);color:var(--muted);font-size:.8rem;padding:2px 8px;border-radius:6px}
@@ -192,6 +198,17 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
 
     <div class="card">
       <h2>これまでの当選者</h2>
+      <form class="hist-form admin-only" id="histForm">
+        <div class="hist-grid">
+          <label>日付<input type="date" id="histDate" required></label>
+          <label>渡した人<select id="histFrom"></select></label>
+          <label>当選者<select id="histTo" required></select></label>
+        </div>
+        <div class="row">
+          <button type="submit" id="histSave" class="ghost">追加する</button>
+          <button type="button" id="histCancel" class="ghost" hidden>やめる</button>
+        </div>
+      </form>
       <ol class="history" id="history"></ol>
       <p class="empty" id="histEmpty">まだありません</p>
     </div>
@@ -385,8 +402,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
   function finish(){
     const items = entries(), total = items.reduce((a,e)=>a+e.w,0), w = entryAtPointer();
     const giver = state.main && state.main !== NONE ? state.main : "";
-    state.history.unshift({name:w.name, from:giver, date:today()});
-    state.history = state.history.slice(0, 50);
+    // 当選履歴は管理者モードで手入力する（ここでは記録しない）
     $("winnerName").textContent = w.name;
     $("winnerOdds").textContent = `${w.w}点 / 全${total}点`;
     $("winnerGiver").textContent = state.main && state.main !== NONE ? `景品は ${state.main} さんから` : "";
@@ -469,8 +485,12 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
         clearTimeout(armed);
         state.history.splice(idx, 1); save(); renderAll();
       });
-      if (!ADMIN) del.hidden = true;
-      wrap.append(who, del); li.appendChild(wrap); h.appendChild(li);
+      const edit = document.createElement("button"); edit.type = "button"; edit.className = "del"; edit.textContent = "編集";
+      edit.setAttribute("aria-label", `${x.date || ""} ${x.name}さんの履歴を編集`);
+      edit.addEventListener("click", () => startEdit(idx));
+      const acts = document.createElement("span"); acts.className = "acts"; acts.append(edit, del);
+      if (!ADMIN) acts.hidden = true;
+      wrap.append(who, acts); li.appendChild(wrap); h.appendChild(li);
     });
     $("histEmpty").hidden = !!state.history.length;
     $("soundBtn").textContent = state.sound ? "音 ON" : "音 OFF";
@@ -562,6 +582,41 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     try{ if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){}
   });
 
+  // 当選履歴の手入力（管理者モード）
+  let editing = -1;
+  const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const toIso = t => { const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(t || ""); return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : (t || isoToday()); };
+  const toDisp = t => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t || ""); return m ? `${m[1]}/${+m[2]}/${+m[3]}` : t; };
+  function fillHistSelects(from, to){
+    const names = roster();
+    const fill = (sel, first, val) => {
+      sel.innerHTML = "";
+      [[ "", first ], ...names.map(n => [n, n])].forEach(([v,t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); });
+      if (val && !names.includes(val)){ const o = document.createElement("option"); o.value = val; o.textContent = val; sel.appendChild(o); }
+      sel.value = val || "";
+    };
+    fill($("histFrom"), "（なし）", from); fill($("histTo"), "選んでください", to);
+  }
+  function resetHistForm(){
+    editing = -1; $("histDate").value = DEFAULT_WEEK || isoToday();
+    fillHistSelects(state.main && state.main !== NONE ? state.main : "", "");
+    $("histSave").textContent = "追加する"; $("histCancel").hidden = true;
+  }
+  function startEdit(i){
+    const x = state.history[i]; if (!x) return;
+    editing = i; $("histDate").value = toIso(x.date); fillHistSelects(x.from || "", x.name);
+    $("histSave").textContent = "変更を保存"; $("histCancel").hidden = false; $("histTo").focus();
+  }
+  $("histForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const to = $("histTo").value; if (!to) { $("histTo").focus(); return; }
+    const rec = { date: toDisp($("histDate").value), from: $("histFrom").value, name: to };
+    if (editing >= 0) state.history[editing] = rec; else state.history.push(rec);
+    state.history.sort((a, b) => toIso(b.date).localeCompare(toIso(a.date)));
+    save(); resetHistForm(); renderAll();
+  });
+  $("histCancel").addEventListener("click", resetHistForm);
+  if (ADMIN) resetHistForm();
   const fitSetup = () => { const c = $("setupCard"); if (c) document.documentElement.style.setProperty("--setup-top", Math.round(c.getBoundingClientRect().top + window.scrollY) + "px"); };
   window.addEventListener("resize", fitSetup); fitSetup();
   renderAll();
