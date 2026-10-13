@@ -91,6 +91,9 @@ details[open] summary{margin-bottom:10px}
 ol.history{margin:0;padding-left:1.6em;display:flex;flex-direction:column;gap:4px}
 ol.history li::marker{color:var(--muted)}
 ol.history li{line-height:1.5}
+.publish{display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--gold);border-radius:10px}
+.publish p{margin:0}
+.spin-sm{background:var(--red);border-color:var(--red);font-size:1rem}
 .hist-form{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px}
 .hist-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 @media (max-width:520px){.hist-grid{grid-template-columns:minmax(0,1fr)}}
@@ -209,6 +212,12 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
           <button type="button" id="histCancel" class="ghost" hidden>やめる</button>
         </div>
       </form>
+      <div class="publish admin-only" id="publishBar" hidden>
+        <p>この変更はまだ全員には見えていません。</p>
+        <button type="button" id="publishBtn" class="spin-sm">全員に公開する</button>
+        <p class="hint" id="publishHelp" hidden>GitHubの画面が開きます。中身をすべて選んで（Ctrl+A）、貼り付け（Ctrl+V）、右上の「Commit changes…」→「Commit changes」を押してください。1〜2分で全員の画面に出ます。</p>
+        <button type="button" id="discardBtn" class="ghost">変更を取り消す</button>
+      </div>
       <ol class="history" id="history"></ol>
       <p class="empty" id="histEmpty">まだありません</p>
     </div>
@@ -296,6 +305,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
   const mainReady = () => state.main === NONE || roster().includes(state.main);
   const weightOf = n => isMain(n) ? 0 : (PT[statusOf(n)] ?? 1);
   state.history = (state.history || []).map(h => typeof h === "string" ? {name:h, date:""} : h);
+  const hist = []; // 全員共通の当選履歴（history.json から読み込む）
   const today = () => { const d = new Date(); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; };
   const entries = () => roster().map(n => ({name:n, w:weightOf(n), st:statusOf(n)})).filter(e => e.w > 0);
 
@@ -465,7 +475,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       : items.length ? `抽選対象 <b>${items.length}</b>名・合計 <b>${total}</b>点` : "抽選対象がいません";
     if (phase === "idle") $("spinBtn").disabled = items.length < 2 || !mainReady();
     const h = $("history"); h.innerHTML = "";
-    state.history.forEach((x, idx) => {
+    hist.forEach((x, idx) => {
       const li = document.createElement("li");
       const wrap = document.createElement("div"); wrap.className = "row-h";
       const who = document.createElement("span"); who.className = "who";
@@ -483,7 +493,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
           return;
         }
         clearTimeout(armed);
-        state.history.splice(idx, 1); save(); renderAll();
+        hist.splice(idx, 1); markDirty(); renderAll();
       });
       const edit = document.createElement("button"); edit.type = "button"; edit.className = "del"; edit.textContent = "編集";
       edit.setAttribute("aria-label", `${x.date || ""} ${x.name}さんの履歴を編集`);
@@ -492,7 +502,8 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       if (!ADMIN) acts.hidden = true;
       wrap.append(who, acts); li.appendChild(wrap); h.appendChild(li);
     });
-    $("histEmpty").hidden = !!state.history.length;
+    $("histEmpty").hidden = !!hist.length;
+    $("publishBar").hidden = !dirty;
     $("soundBtn").textContent = state.sound ? "音 ON" : "音 OFF";
     $("soundBtn").setAttribute("aria-pressed", String(state.sound));
     draw();
@@ -582,6 +593,34 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     try{ if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){}
   });
 
+  // 当選履歴は全員共通：GitHub上の history.json を読む。管理者の未公開の変更は下書きとしてこのブラウザに残す
+  const DRAFT_KEY = "fxr-roulette-hist-draft";
+  const EDIT_URL = "https://github.com/morio1248/fxr-roulette/edit/main/history.json";
+  let published = [], dirty = false;
+  const histJson = h => JSON.stringify(h.map(x => ({date: x.date || "", from: x.from || "", name: x.name})), null, 2) + "\n";
+  function markDirty(){
+    dirty = histJson(hist) !== histJson(published);
+    try { dirty ? localStorage.setItem(DRAFT_KEY, histJson(hist)) : localStorage.removeItem(DRAFT_KEY); } catch(e){}
+  }
+  fetch("history.json?t=" + Date.now(), {cache: "no-store"}).then(r => r.ok ? r.json() : []).catch(() => []).then(list => {
+    published = Array.isArray(list) ? list.filter(x => x && x.name) : [];
+    let draft = null;
+    if (ADMIN) { try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch(e){} }
+    // 以前このブラウザだけに保存していた履歴があれば、下書きとして引き継ぐ
+    if (ADMIN && !draft && !published.length && stored.history && stored.history.length) draft = stored.history;
+    hist.length = 0; (Array.isArray(draft) ? draft : published).forEach(x => hist.push(x));
+    markDirty(); if (phase === "idle") renderAll();
+  });
+  $("publishBtn").addEventListener("click", () => {
+    const text = histJson(hist);
+    const done = () => { $("publishHelp").hidden = false; };
+    try { navigator.clipboard.writeText(text).then(done, done); } catch(e){ done(); }
+    window.open(EDIT_URL, "_blank", "noopener");
+  });
+  $("discardBtn").addEventListener("click", () => {
+    hist.length = 0; published.forEach(x => hist.push(x)); markDirty(); resetHistForm(); renderAll();
+  });
+
   // 当選履歴の手入力（管理者モード）
   let editing = -1;
   const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
@@ -603,7 +642,7 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     $("histSave").textContent = "追加する"; $("histCancel").hidden = true;
   }
   function startEdit(i){
-    const x = state.history[i]; if (!x) return;
+    const x = hist[i]; if (!x) return;
     editing = i; $("histDate").value = toIso(x.date); fillHistSelects(x.from || "", x.name);
     $("histSave").textContent = "変更を保存"; $("histCancel").hidden = false; $("histTo").focus();
   }
@@ -611,9 +650,9 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     e.preventDefault();
     const to = $("histTo").value; if (!to) { $("histTo").focus(); return; }
     const rec = { date: toDisp($("histDate").value), from: $("histFrom").value, name: to };
-    if (editing >= 0) state.history[editing] = rec; else state.history.push(rec);
-    state.history.sort((a, b) => toIso(b.date).localeCompare(toIso(a.date)));
-    save(); resetHistForm(); renderAll();
+    if (editing >= 0) hist[editing] = rec; else hist.push(rec);
+    hist.sort((a, b) => toIso(b.date).localeCompare(toIso(a.date)));
+    markDirty(); resetHistForm(); renderAll();
   });
   $("histCancel").addEventListener("click", resetHistForm);
   if (ADMIN) resetHistForm();
