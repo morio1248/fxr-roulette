@@ -251,7 +251,6 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
   <div class="result-inner">
     <div class="label">当 選</div>
     <div class="name" id="winnerName"></div>
-    <div class="odds" id="winnerOdds"></div>
     <div class="giver" id="winnerGiver"></div>
     <figure class="prize-show" id="prizeShow" hidden>
       <img id="prizeShowImg" alt="">
@@ -429,7 +428,6 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     const giver = state.main && state.main !== NONE ? state.main : "";
     // 当選履歴は管理者モードで手入力する（ここでは記録しない）
     $("winnerName").textContent = w.name;
-    $("winnerOdds").textContent = `${w.w}点 / 全${total}点`;
     $("winnerGiver").textContent = state.main && state.main !== NONE ? `景品は ${state.main} さんから` : "";
     $("result").hidden = false; $("closeResult").focus();
     fanfare(); save();
@@ -486,8 +484,9 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
     renderMembers();
     const all = roster(), items = entries(), total = items.reduce((a,e)=>a+e.w,0);
     $("count").textContent = `対象 ${items.length} / ${all.length}名`;
-    $("summary").innerHTML = !mainReady() ? "先に「景品を渡す人（メインプレゼン）」を選んでください"
-      : items.length ? `抽選対象 <b>${items.length}</b>名・合計 <b>${total}</b>点` : "抽選対象がいません";
+    // 人数・点数の合計は表示しない（回せないときの注意だけ出す）
+    const warn = !mainReady() ? "先に「景品を渡す人（メインプレゼン）」を選んでください" : items.length < 2 ? "抽選対象がいません" : "";
+    $("summary").textContent = warn; $("summary").hidden = !warn;
     if (phase === "idle") $("spinBtn").disabled = items.length < 2 || !mainReady();
     const h = $("history"); h.innerHTML = "";
     hist.forEach((x, idx) => {
