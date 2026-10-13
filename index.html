@@ -26,7 +26,7 @@
 }
 html,body{height:100%}
 body{background:var(--stage);color:var(--ink);font-family:var(--f-body);font-weight:700;font-size:16px}
-.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:20px 32px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px;align-items:start}
+.wrap{max-width:1440px;margin:0 auto;padding-inline:16px;padding-block:20px 32px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:24px;align-items:start}
 @media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
 header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
 h1{font-family:var(--f-display);font-weight:400;font-size:clamp(1.5rem,3.2vw,2.2rem);margin:0;letter-spacing:.02em}
@@ -57,9 +57,12 @@ aside{display:flex;flex-direction:column;gap:16px;min-width:0}
 .card h2{margin:0;font-size:1rem;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .card h2 small{color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
 .members{display:flex;flex-direction:column;gap:6px;max-height:min(56vh,560px);overflow-y:auto;padding-right:4px}
-/* PCの横長画面：参加設定の枠を画面の下端まで伸ばし、その下（今週の景品など）はスクロールしないと見えないようにする */
+/* PCの横長画面：参加設定の枠をルーレットと同じ高さにする */
 @media (min-width:901px){
-  .card.setup{height:calc(100vh - var(--setup-top, 110px) - 8px);box-sizing:border-box}
+  /* 参加者の枠は、左のルーレット（スタートボタンの下端）までの高さに合わせる */
+  .wrap{align-items:stretch}
+  .wrap > aside{position:relative;min-height:0}
+  .card.setup{position:absolute;inset:0;box-sizing:border-box}
   .card.setup .members{flex:1;min-height:0;max-height:none}
 }
 .m{display:grid;grid-template-columns:minmax(0,1fr) auto 2.6em;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:var(--stage)}
@@ -121,7 +124,7 @@ ol.history .arrow{color:var(--gold);margin-inline:.4em}
 /* 今週の景品：PCでは横幅いっぱいに大きく表示 */
 .prize-body{display:flex;flex-direction:column;gap:10px}
 .prize-ctrl{display:flex;flex-direction:column;gap:10px;min-width:0}
-.prize-card{grid-column:1/-1}
+.prize-card,.card.wide{grid-column:1/-1}
 @media (min-width:901px){
   .prize-card h2{font-size:1.4rem}
   .prize-body{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px;align-items:start}
@@ -193,37 +196,6 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
       <p class="hint view-only">点数と対象者は、その週の定例会スライドをもとにWebマスターが設定しています。この画面では変更できません。</p>
       <p class="hint admin-only">管理者モードです。順位・欠席などは毎週ここで選びます。同順位は何人でも同じ点数にできます。リセットすると全員「参加 1点」に戻り、メインプレゼンも未選択になります（当選履歴は残ります）。</p>
     </div>
-
-    <div class="card">
-      <h2>これまでの当選者</h2>
-      <form class="hist-form admin-only" id="histForm">
-        <div class="hist-grid">
-          <label>日付<input type="date" id="histDate" required></label>
-          <label>渡した人<select id="histFrom"></select></label>
-          <label>当選者<select id="histTo" required></select></label>
-        </div>
-        <div class="row">
-          <button type="submit" id="histSave" class="ghost">追加する</button>
-          <button type="button" id="histCancel" class="ghost" hidden>やめる</button>
-        </div>
-      </form>
-      <div class="publish admin-only" id="publishBar" hidden>
-        <p>この変更はまだ全員には見えていません。</p>
-        <button type="button" id="publishBtn" class="spin-sm">全員に公開する</button>
-        <p class="hint" id="publishHelp" hidden>GitHubの画面が開きます。中身をすべて選んで（Ctrl+A）、貼り付け（Ctrl+V）、右上の「Commit changes…」→「Commit changes」を押してください。1〜2分で全員の画面に出ます。</p>
-        <button type="button" id="discardBtn" class="ghost">変更を取り消す</button>
-      </div>
-      <ol class="history" id="history"></ol>
-      <p class="empty" id="histEmpty">まだありません</p>
-    </div>
-
-    <div class="card admin-only">
-      <details id="rosterBox">
-        <summary>メンバー名簿を編集</summary>
-        <textarea id="roster" spellcheck="false" aria-label="メンバー名簿"></textarea>
-        <p class="hint">1行に1人。この端末のブラウザに保存され、翌週も使えます。</p>
-      </details>
-    </div>
   </aside>
   <section class="card prize-card" id="prizeCard">
       <h2>今週の景品 <button id="prizeClear" class="ghost" type="button" hidden>写真を外す</button></h2>
@@ -243,6 +215,35 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
           <p class="hint">当選画面に名前と一緒に表示されます。写真はこの端末のブラウザに保存されます。</p>
         </div>
       </div>
+  </section>
+  <section class="card wide admin-only" id="rosterCard">
+    <details id="rosterBox">
+      <summary>メンバー名簿を編集</summary>
+      <textarea id="roster" spellcheck="false" aria-label="メンバー名簿"></textarea>
+      <p class="hint">1行に1人。この端末のブラウザに保存され、翌週も使えます。</p>
+    </details>
+  </section>
+  <section class="card wide" id="historyCard">
+    <h2>これまでの当選者</h2>
+    <form class="hist-form admin-only" id="histForm">
+      <div class="hist-grid">
+        <label>日付<input type="date" id="histDate" required></label>
+        <label>渡した人<select id="histFrom"></select></label>
+        <label>当選者<select id="histTo" required></select></label>
+      </div>
+      <div class="row">
+        <button type="submit" id="histSave" class="ghost">追加する</button>
+        <button type="button" id="histCancel" class="ghost" hidden>やめる</button>
+      </div>
+    </form>
+    <div class="publish admin-only" id="publishBar" hidden>
+      <p>この変更はまだ全員には見えていません。</p>
+      <button type="button" id="publishBtn" class="spin-sm">全員に公開する</button>
+      <p class="hint" id="publishHelp" hidden>GitHubの画面が開きます。中身をすべて選んで（Ctrl+A）、貼り付け（Ctrl+V）、右上の「Commit changes…」→「Commit changes」を押してください。1〜2分で全員の画面に出ます。</p>
+      <button type="button" id="discardBtn" class="ghost">変更を取り消す</button>
+    </div>
+    <ol class="history" id="history"></ol>
+    <p class="empty" id="histEmpty">まだありません</p>
   </section>
 </div>
 
@@ -670,8 +671,6 @@ input[type=text]{width:100%;box-sizing:border-box;background:var(--stage);color:
   });
   $("histCancel").addEventListener("click", resetHistForm);
   if (ADMIN) resetHistForm();
-  const fitSetup = () => { const c = $("setupCard"); if (c) document.documentElement.style.setProperty("--setup-top", Math.round(c.getBoundingClientRect().top + window.scrollY) + "px"); };
-  window.addEventListener("resize", fitSetup); fitSetup();
   renderAll();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
 })();
